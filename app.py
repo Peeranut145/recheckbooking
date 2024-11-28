@@ -25,13 +25,23 @@ def index():
 # เส้นทางสำหรับการตรวจสอบข้อมูลที่ซ้ำ
 @app.route('/check_duplicates', methods=['POST'])
 def check_duplicates_route():
-    file = request.files['file']
-    file.save('uploaded_file.xlsx')
-    duplicates = check_duplicates('uploaded_file.xlsx')
-    if duplicates:
-        return jsonify({'duplicates': duplicates})
-    else:
-        return jsonify({'message': 'ไม่มีข้อมูลที่ซ้ำ'})
+    try:
+        file = request.files['file']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(f'uploaded_{filename}')
+            duplicates = check_duplicates(f'uploaded_{filename}')
+            
+            if duplicates:
+                return jsonify({'duplicates': duplicates})
+            else:
+                return jsonify({'message': 'ไม่มีข้อมูลที่ซ้ำ'})
+        else:
+            return jsonify({'error': 'ไฟล์ไม่ถูกต้อง! กรุณาอัปโหลดไฟล์ .xlsx เท่านั้น.'})
+    except Exception as e:
+        return jsonify({'error': 'เกิดข้อผิดพลาดในการประมวลผลไฟล์:', 'details': str(e)})
 
 if __name__ == "__main__":
     app.run(debug=True)
+    
+    
