@@ -1,47 +1,53 @@
-import openpyxl
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template
+import pandas as pd
+from werkzeug.utils import secure_filename
+from io import BytesIO
 
 app = Flask(__name__)
 
-# ฟังก์ชันเพื่อตรวจสอบข้อมูลที่ซ้ำจากไฟล์ Excel
-def check_duplicates(file_path):
-    wb = openpyxl.load_workbook(file_path)
-    sheet = wb.active
-    values = [row[0].value for row in sheet.iter_rows(min_row=2)]  # อ่านค่าจากคอลัมน์แรก
-    duplicates = [val for val in set(values) if values.count(val) > 1]
-    return duplicates
-
-# หน้าเว็บหลักสำหรับการอัปโหลดไฟล์
 @app.route('/')
-def index():
+def upload_file():
     return '''
-        <h1>อัปโหลดไฟล์ Excel เพื่อตรวจสอบข้อมูลที่ซ้ำ</h1>
-        <form method="POST" action="/check_duplicates" enctype="multipart/form-data">
-            <input type="file" name="file" required>
-            <button type="submit">อัปโหลดไฟล์</button>
-        </form>
+    <!doctype html>
+    <title>ตรวจสอบ Booking ซ้ำ</title>
+    <h1>อัปโหลดไฟล์ Excel</h1>
+    <form action="/check_duplicates" method="post" enctype="multipart/form-data">
+      <input type="file" name="file">
+      <input type="submit" value="อัปโหลด">
+    </form>
     '''
 
-# เส้นทางสำหรับการตรวจสอบข้อมูลที่ซ้ำ
 @app.route('/check_duplicates', methods=['POST'])
-def check_duplicates_route():
-    try:
-        file = request.files['file']
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            file.save(f'uploaded_{filename}')
-            duplicates = check_duplicates(f'uploaded_{filename}')
-            
-            if duplicates:
-                return jsonify({'duplicates': duplicates})
-            else:
-                return jsonify({'message': 'ไม่มีข้อมูลที่ซ้ำ'})
-        else:
-            return jsonify({'error': 'ไฟล์ไม่ถูกต้อง! กรุณาอัปโหลดไฟล์ .xlsx เท่านั้น.'})
-    except Exception as e:
-        return jsonify({'error': 'เกิดข้อผิดพลาดในการประมวลผลไฟล์:', 'details': str(e)})
+def check_duplicates():
+    if 'file' not in request.files:
+        return 'ไม่มีไฟล์ที่อัปโหลด'
 
-if __name__ == "__main__":
+    file = request.files['file']
+    if file.filename == '':
+        return 'ไม่ได้เลือกไฟล์'
+
+    # ใช้ BytesIO แทนการบันทึกไฟล์ในระบบไฟล์
+    try:
+        file_stream = BytesIO(file.read())
+        df = pd.read_excel(file_stream)
+    except Exception as e:
+        return f'เกิดข้อผิดพลาดในการอ่านไฟล์: {str(e)}'
+
+    # ตรวจสอบค่าซ้ำในคอลัมน์ Man_VoucherNo
+    if 'Man_VoucherNo' not in df.columns:
+        return 'ไม่พบคอลัมน์ Man_VoucherNo ในไฟล์ Excel'
+
+    duplicates = df[df.duplicated(subset='Man_VoucherNo', keep=False)]
+
+    # แสดงผลลัพธ์
+    if duplicates.empty:
+        return '<h1>ไม่พบ Booking ซ้ำในไฟล์ที่อัปโหลด</h1>'
+    else:
+        # ส่งผลลัพธ์ออกเป็น HTML
+        return f'''
+        <h1>พบ Booking ซ้ำ</h1>
+        {duplicates.to_html(index=False)}
+        '''
+
+if __name__ == '__main__':
     app.run(debug=True)
-    
-    

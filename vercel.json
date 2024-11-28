@@ -8,12 +8,8 @@
     ],
     "routes": [
       {
-        "src": "/check_duplicates",
-        "dest": "/app.py"
-      },
-      {
-        "src": "/",
-        "dest": "/app.py"
+        "src": "/.*",
+        "dest": "app.py"
       }
     ]
   }
